@@ -26,6 +26,7 @@ static NSString *const FIELD_SIZE = @"size";
 @implementation RNDocumentPicker {
     UIDocumentPickerMode mode;
     NSString *copyDestination;
+    NSString *subDir;
     NSMutableArray *composeResolvers;
     NSMutableArray *composeRejecters;
     NSMutableArray *urls;
@@ -68,6 +69,7 @@ RCT_EXPORT_METHOD(pick:(NSDictionary *)options
 {
     mode = options[@"mode"] && [options[@"mode"] isEqualToString:@"open"] ? UIDocumentPickerModeOpen : UIDocumentPickerModeImport;
     copyDestination = options[@"copyTo"] ? options[@"copyTo"] : nil;
+    subDir = options[@"subDir"] ? options[@"subDir"] : nil;
     [composeResolvers addObject:resolve];
     [composeRejecters addObject:reject];
 
@@ -103,7 +105,7 @@ RCT_EXPORT_METHOD(pick:(NSDictionary *)options
         if (!fileError) {
             [result setValue:((mode == UIDocumentPickerModeOpen) ? url : newURL).absoluteString forKey:FIELD_URI];
             NSError *copyError;
-            NSURL *maybeFileCopyPath = copyDestination ? [RNDocumentPicker copyToUniqueDestinationFrom:newURL usingDestinationPreset:copyDestination error:copyError] : newURL;
+            NSURL *maybeFileCopyPath = copyDestination ? [RNDocumentPicker copyToUniqueDestinationFrom:newURL usingDestinationPreset:copyDestination usingSubDirPreset:subDir error:copyError] : newURL;
             [result setValue:maybeFileCopyPath.absoluteString forKey:FIELD_FILE_COPY_URI];
             if (copyError) {
                 [result setValue:copyError.description forKey:FIELD_COPY_ERR];
@@ -168,9 +170,12 @@ RCT_EXPORT_METHOD(releaseSecureAccess:(NSArray<NSString *> *)uris)
     return [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
 }
 
-+ (NSURL *)copyToUniqueDestinationFrom:(NSURL *)url usingDestinationPreset:(NSString *)copyToDirectory error:(NSError *)error
++ (NSURL *)copyToUniqueDestinationFrom:(NSURL *)url usingDestinationPreset:(NSString *)copyToDirectory usingSubDirPreset: (NSString *)subDir error:(NSError *)error
 {
     NSURL *destinationRootDir = [self getDirectoryForFileCopy:copyToDirectory];
+    if(subDir){
+        destinationRootDir = [destinationRootDir URLByAppendingPathComponent:[NSString stringWithFormat:@"%@/", subDir]];
+    }
     // we don't want to rename the file so we put it into a unique location
     NSString *uniqueSubDirName = [[NSUUID UUID] UUIDString];
     NSURL *destinationDir = [destinationRootDir URLByAppendingPathComponent:[NSString stringWithFormat:@"%@/", uniqueSubDirName]];

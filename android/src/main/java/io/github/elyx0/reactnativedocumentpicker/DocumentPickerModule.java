@@ -53,6 +53,7 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 	private static final String OPTION_TYPE = "type";
 	private static final String OPTION_MULIPLE = "multiple";
 	private static final String OPTION_COPYTO = "copyTo";
+	private static final String OPTION_SUBDIR = "subDir";
 
 	private static final String FIELD_URI = "uri";
 	private static final String FIELD_FILE_COPY_URI = "fileCopyUri";
@@ -83,6 +84,7 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 
 	private Promise promise;
 	private String copyTo;
+	private String subDir;
 
 	public DocumentPickerModule(ReactApplicationContext reactContext) {
 		super(reactContext);
@@ -105,6 +107,7 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 		Activity currentActivity = getCurrentActivity();
 		this.promise = promise;
 		this.copyTo = args.hasKey(OPTION_COPYTO) ? args.getString(OPTION_COPYTO) : null;
+		this.subDir = args.hasKey(OPTION_SUBDIR) ? args.getString(OPTION_SUBDIR) : "";
 
 		if (currentActivity == null) {
 			sendError(E_ACTIVITY_DOES_NOT_EXIST, "Current activity does not exist");
@@ -166,7 +169,7 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 					return;
 				}
 
-				new ProcessDataTask(getReactApplicationContext(), uris, copyTo, promise).execute();
+				new ProcessDataTask(getReactApplicationContext(), uris, copyTo, subDir, promise).execute();
 			} catch (Exception e) {
 				sendError(E_UNEXPECTED_EXCEPTION, e.getLocalizedMessage(), e);
 			}
@@ -179,13 +182,15 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 		private final WeakReference<Context> weakContext;
 		private final List<Uri> uris;
 		private final String copyTo;
+		private final String subDir;
 		private final Promise promise;
 
-		protected ProcessDataTask(ReactContext reactContext, List<Uri> uris, String copyTo, Promise promise) {
+		protected ProcessDataTask(ReactContext reactContext, List<Uri> uris, String copyTo, String subDir, Promise promise) {
 			super(reactContext.getExceptionHandler());
 			this.weakContext = new WeakReference<>(reactContext.getApplicationContext());
 			this.uris = uris;
 			this.copyTo = copyTo;
+			this.subDir = subDir;
 			this.promise = promise;
 		}
 
@@ -239,6 +244,10 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 				File dir = context.getCacheDir();
 				if (copyTo.equals("documentDirectory")) {
 					dir = context.getFilesDir();
+				}
+				if(!subDir.isEmpty()){
+					dir = new File(dir.getPath(), subDir);
+					dir.mkdir();
 				}
 				// we don't want to rename the file so we put it into a unique location
 				dir = new File(dir, UUID.randomUUID().toString());
