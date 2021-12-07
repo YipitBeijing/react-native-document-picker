@@ -7,6 +7,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.DocumentsContract;
@@ -217,7 +218,8 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 			WritableMap map = Arguments.createMap();
 			map.putString(FIELD_URI, uri.toString());
 			map.putString(FIELD_TYPE, contentResolver.getType(uri));
-			try (Cursor cursor = contentResolver.query(uri, null, null, null, null, null)) {
+			try {
+				Cursor cursor = contentResolver.query(uri, null, null, null, null, null);
 				if (cursor != null && cursor.moveToFirst()) {
 					int displayNameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
 					if (!cursor.isNull(displayNameIndex)) {
@@ -233,6 +235,8 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 						map.putInt(FIELD_SIZE, cursor.getInt(sizeIndex));
 					}
 				}
+			} catch(Exception e) {
+				e.printStackTrace();
 			}
 
 			prepareFileUri(context, map, uri);
@@ -255,10 +259,13 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 				String fileName = map.getString(FIELD_NAME);
 				if (fileName == null) {
 					fileName = String.valueOf(System.currentTimeMillis());
+					if(uri.toString().contains(("video"))) {
+						fileName += ".mp4";
+					}
 				}
 				try {
 					File destFile = new File(dir, fileName);
-					String path = copyFile(context, uri, destFile);
+					String path = copyFile(context, uri, destFile, map);
 					map.putString(FIELD_FILE_COPY_URI, path);
 				} catch (IOException e) {
 					e.printStackTrace();
@@ -270,12 +277,15 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 			}
 		}
 
-		public static String copyFile(Context context, Uri uri, File destFile) throws IOException {
+		public static String copyFile(Context context, Uri uri, File destFile, WritableMap map) throws IOException {
 			InputStream in = null;
 			FileOutputStream out = null;
 			try {
 				in = context.getContentResolver().openInputStream(uri);
 				if (in != null) {
+					if(!map.hasKey(FIELD_SIZE)) {
+						map.putInt(FIELD_SIZE, in.available());
+					}
 					out = new FileOutputStream(destFile);
 					byte[] buffer = new byte[1024];
 					int len;
@@ -284,7 +294,11 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 					}
 					out.close();
 					in.close();
-					return destFile.getAbsolutePath();
+					String filePath = destFile.getAbsolutePath();
+					if(!map.hasKey(FIELD_TYPE) || map.getString(FIELD_TYPE) == null || "".equals(map.getString(FIELD_TYPE))) {
+						map.putString(FIELD_TYPE, getMimeType(filePath));
+					}
+					return filePath;
 				} else {
 					throw new NullPointerException("Invalid input stream");
 				}
@@ -301,6 +315,25 @@ public class DocumentPickerModule extends ReactContextBaseJavaModule {
 			}
 		}
 	}
+
+	private static String getMimeType(String filePath) {
+		MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+		String mime = "";
+		if (filePath != null) {
+			try {
+				mmr.setDataSource(filePath);
+				mime = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
+			} catch (IllegalStateException e) {
+				return mime;
+			} catch (IllegalArgumentException e) {
+				return mime;
+			} catch (RuntimeException e) {
+				return mime;
+			}
+		}
+		return mime;
+	}
+
 
 	private void sendError(String code, String message) {
 		sendError(code, message, null);
